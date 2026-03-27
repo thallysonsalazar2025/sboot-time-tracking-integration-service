@@ -1,0 +1,54 @@
+openapi: 3.0.3
+info:
+  title: Time Tracking Integration Service API
+  version: 1.0.0
+  description: API reativa para integração de eventos de ponto via Secullum.
+paths:
+  /api/v1/integrations/events:
+    get:
+      summary: Buscar eventos de ponto normalizados
+      parameters:
+        - name: companyId
+          in: query
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: period
+          in: query
+          required: true
+          schema:
+            type: string
+            pattern: '^\\d{4}-(0[1-9]|1[0-2])$'
+      responses:
+        '200':
+          description: Eventos de ponto normalizados
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/TimeEvent'
+        '404':
+          description: Configuração de integração não encontrada
+        '502':
+          description: Falha de integração externa
+components:
+  schemas:
+    TimeEvent:
+      type: object
+      properties:
+        type:
+          type: string
+          example: OVERTIME
+        date:
+          type: string
+          format: date
+        quantity:
+          type: number
+          format: decimal
+          example: 2.50
+        amount:
+          type: number
+          format: decimal
+          example: 125.00
