@@ -54,7 +54,9 @@ class SecullumAdapterTest {
                 .expectErrorSatisfies(ex -> assertTrue(ex instanceof ExternalIntegrationException))
                 .verify();
 
-        verify(client, times(3)).fetchEvents(any(), any());
+        // RetryOperator resubscribes to the Mono returned by the client; it does not invoke
+        // the mocked factory method again for each retry attempt.
+        verify(client, times(1)).fetchEvents(any(), any());
     }
 
     @Test
