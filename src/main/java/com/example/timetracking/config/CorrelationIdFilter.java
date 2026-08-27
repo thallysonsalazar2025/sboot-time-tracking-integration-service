@@ -17,10 +17,10 @@ public class CorrelationIdFilter implements WebFilter {
     @Override
     public Mono<Void> filter(ServerWebExchange exchange, WebFilterChain chain) {
         ServerHttpRequest request = exchange.getRequest();
-        String correlationId = request.getHeaders().getFirst(CORRELATION_ID);
-        if (correlationId == null || correlationId.isBlank()) {
-            correlationId = UUID.randomUUID().toString();
-        }
+        String requestedCorrelationId = request.getHeaders().getFirst(CORRELATION_ID);
+        String correlationId = requestedCorrelationId == null || requestedCorrelationId.isBlank()
+                ? UUID.randomUUID().toString()
+                : requestedCorrelationId;
 
         exchange.getResponse().getHeaders().add(CORRELATION_ID, correlationId);
 

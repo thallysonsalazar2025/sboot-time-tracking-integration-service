@@ -1,5 +1,6 @@
 package com.example.timetracking.client;
 
+import com.example.timetracking.config.CorrelationIdFilter;
 import com.example.timetracking.dto.SecullumResponse;
 import java.time.YearMonth;
 import java.util.List;
@@ -20,14 +21,24 @@ public class SecullumClient {
     }
 
     public Mono<List<SecullumResponse>> fetchEvents(UUID companyId, YearMonth period) {
-        return webClient.get()
-                .uri(uriBuilder -> uriBuilder.path("/secullum/events")
-                        .queryParam("companyId", companyId)
-                        .queryParam("period", period)
-                        .build())
-                .accept(MediaType.APPLICATION_JSON)
-                .retrieve()
-                .bodyToFlux(SecullumResponse.class)
-                .collectList();
+        return Mono.deferContextual(contextView -> {
+            WebClient.RequestHeadersSpec<?> request = webClient.get()
+                    .uri(uriBuilder -> uriBuilder.path("/secullum/events")
+                            .queryParam("companyId", companyId)
+                            .queryParam("period", period)
+                            .build())
+                    .accept(MediaType.APPLICATION_JSON);
+
+            if (contextView.hasKey(CorrelationIdFilter.CORRELATION_ID)) {
+                String correlationId = contextView.get(CorrelationIdFilter.CORRELATION_ID);
+                if (correlationId != null && !correlationId.isBlank()) {
+                    request = request.header(CorrelationIdFilter.CORRELATION_ID, correlationId);
+                }
+            }
+
+            return request.retrieve()
+                    .bodyToFlux(SecullumResponse.class)
+                    .collectList();
+        });
     }
 }
