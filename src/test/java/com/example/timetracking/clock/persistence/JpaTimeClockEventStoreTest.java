@@ -16,7 +16,7 @@ import static org.assertj.core.api.Assertions.assertThat;
         "spring.jpa.hibernate.ddl-auto=update",
         "spring.flyway.enabled=true"
 })
-@Import(JpaTimeClockEventStore.class)
+@Import({JpaTimeClockEventStore.class, TimeClockEventInserter.class})
 class JpaTimeClockEventStoreTest {
     @Autowired
     private JpaTimeClockEventStore store;
