@@ -8,7 +8,10 @@ CREATE TABLE time_clock_adjustment (
     requested_at TIMESTAMP WITH TIME ZONE NOT NULL,
     status VARCHAR(30) NOT NULL,
     decided_by VARCHAR(150),
-    decided_at TIMESTAMP WITH TIME ZONE
+    decided_at TIMESTAMP WITH TIME ZONE,
+    CONSTRAINT fk_time_clock_adjustment_original_event
+        FOREIGN KEY (tenant_id, employee_id, original_client_event_id)
+        REFERENCES time_clock_event (tenant_id, employee_id, client_event_id)
 );
 
 CREATE INDEX idx_time_clock_adjustment_tenant_employee_requested_at
