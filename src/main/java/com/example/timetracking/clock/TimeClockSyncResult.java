@@ -18,7 +18,15 @@ public record TimeClockSyncResult(
         );
     }
 
+    public static TimeClockSyncResult accepted(UUID clientEventId, TimeClockRegistrationStatus status) {
+        return accepted(clientEventId, status, Instant.now());
+    }
+
     public static TimeClockSyncResult rejected(UUID clientEventId, String reason, Instant serverReceivedAt) {
         return new TimeClockSyncResult(clientEventId, TimeClockSyncStatus.REJECTED, reason, serverReceivedAt);
+    }
+
+    public static TimeClockSyncResult rejected(UUID clientEventId, String reason) {
+        return rejected(clientEventId, reason, Instant.now());
     }
 }
