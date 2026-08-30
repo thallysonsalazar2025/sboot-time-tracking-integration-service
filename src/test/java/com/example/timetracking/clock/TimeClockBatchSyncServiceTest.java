@@ -7,6 +7,7 @@ import java.util.List;
 import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 class TimeClockBatchSyncServiceTest {
@@ -27,6 +28,7 @@ class TimeClockBatchSyncServiceTest {
         assertEquals(TimeClockSyncStatus.EXISTING, results.get(1).status());
         assertEquals(TimeClockSyncStatus.REJECTED, results.get(2).status());
         assertEquals("INVALID_EVENT", results.get(2).reason());
+        results.forEach(result -> assertNotNull(result.serverReceivedAt()));
     }
 
     @Test
@@ -39,8 +41,12 @@ class TimeClockBatchSyncServiceTest {
                 Instant.parse("2026-08-29T20:00:00Z")
         );
 
-        assertEquals(TimeClockSyncStatus.CREATED, service.sync("tenant-a", List.of(item)).get(0).status());
-        assertEquals(TimeClockSyncStatus.CREATED, service.sync("tenant-b", List.of(item)).get(0).status());
+        TimeClockSyncResult tenantA = service.sync("tenant-a", List.of(item)).get(0);
+        TimeClockSyncResult tenantB = service.sync("tenant-b", List.of(item)).get(0);
+        assertEquals(TimeClockSyncStatus.CREATED, tenantA.status());
+        assertEquals(TimeClockSyncStatus.CREATED, tenantB.status());
+        assertNotNull(tenantA.serverReceivedAt());
+        assertNotNull(tenantB.serverReceivedAt());
     }
 
     @Test
