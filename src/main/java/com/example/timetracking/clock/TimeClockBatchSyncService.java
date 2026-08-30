@@ -3,7 +3,9 @@ package com.example.timetracking.clock;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
+import org.springframework.stereotype.Service;
 
+@Service
 public final class TimeClockBatchSyncService {
     private final TimeClockEventStore store;
 
