@@ -10,10 +10,11 @@ import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest;
 import org.springframework.context.annotation.Import;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 @DataJpaTest(properties = {
-        "spring.jpa.hibernate.ddl-auto=validate",
+        "spring.jpa.hibernate.ddl-auto=update",
         "spring.flyway.enabled=true"
 })
 @Import(JpaTimeClockAdjustmentStore.class)
@@ -38,5 +39,11 @@ class JpaTimeClockAdjustmentStoreTest {
         assertEquals(TimeClockAdjustmentStatus.PENDING_APPROVAL, saved.status());
         assertTrue(store.findByTenantIdAndId("tenant-a", saved.id()).isPresent());
         assertTrue(store.findByTenantIdAndId("tenant-b", saved.id()).isEmpty());
+    }
+
+    @Test
+    void rejectsBlankTenantLookup() {
+        assertThrows(IllegalArgumentException.class,
+                () -> store.findByTenantIdAndId(" ", UUID.randomUUID()));
     }
 }
