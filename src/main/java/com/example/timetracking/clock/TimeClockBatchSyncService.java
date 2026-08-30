@@ -1,5 +1,6 @@
 package com.example.timetracking.clock;
 
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
@@ -21,8 +22,9 @@ public final class TimeClockBatchSyncService {
 
         List<TimeClockSyncResult> results = new ArrayList<>(items.size());
         for (TimeClockSyncItem item : items) {
+            Instant serverReceivedAt = Instant.now();
             if (item == null) {
-                results.add(TimeClockSyncResult.rejected(null, "INVALID_EVENT"));
+                results.add(TimeClockSyncResult.rejected(null, "INVALID_EVENT", serverReceivedAt));
                 continue;
             }
             try {
@@ -33,9 +35,9 @@ public final class TimeClockBatchSyncService {
                         item.occurredAt()
                 );
                 TimeClockRegistrationResult registration = store.register(event);
-                results.add(TimeClockSyncResult.accepted(item.clientEventId(), registration.status()));
+                results.add(TimeClockSyncResult.accepted(item.clientEventId(), registration.status(), serverReceivedAt));
             } catch (IllegalArgumentException | NullPointerException invalidEvent) {
-                results.add(TimeClockSyncResult.rejected(item.clientEventId(), "INVALID_EVENT"));
+                results.add(TimeClockSyncResult.rejected(item.clientEventId(), "INVALID_EVENT", serverReceivedAt));
             }
         }
         return List.copyOf(results);
