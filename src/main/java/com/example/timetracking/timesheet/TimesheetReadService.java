@@ -6,11 +6,10 @@ import org.springframework.stereotype.Service;
 
 import java.time.Instant;
 import java.time.YearMonth;
-import java.time.ZoneOffset;
+import java.time.ZoneId;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
-import java.util.function.Function;
 import java.util.stream.Collectors;
 
 @Service
@@ -21,15 +20,18 @@ public class TimesheetReadService {
         this.repository = repository;
     }
 
-    public List<TimesheetItem> read(String tenantId, String employeeId, YearMonth competence) {
+    public List<TimesheetItem> read(String tenantId, String employeeId, YearMonth competence, ZoneId businessZone) {
         requireText(tenantId, "tenantId");
         requireText(employeeId, "employeeId");
         if (competence == null) {
             throw new IllegalArgumentException("competence is required");
         }
+        if (businessZone == null) {
+            throw new IllegalArgumentException("businessZone is required");
+        }
 
-        Instant fromInclusive = competence.atDay(1).atStartOfDay(ZoneOffset.UTC).toInstant();
-        Instant toExclusive = competence.plusMonths(1).atDay(1).atStartOfDay(ZoneOffset.UTC).toInstant();
+        Instant fromInclusive = competence.atDay(1).atStartOfDay(businessZone).toInstant();
+        Instant toExclusive = competence.plusMonths(1).atDay(1).atStartOfDay(businessZone).toInstant();
 
         List<TimeClockEvent> originals = repository.findOriginalEvents(tenantId, employeeId, fromInclusive, toExclusive);
         List<UUID> eventIds = originals.stream().map(TimeClockEvent::clientEventId).toList();
