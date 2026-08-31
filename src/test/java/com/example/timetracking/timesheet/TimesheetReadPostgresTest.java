@@ -50,18 +50,19 @@ class TimesheetReadPostgresTest {
 
     @Test
     void isolatesTenantAndEmployeeAndComposesOnlyApprovedAdjustments() {
-        UUID tenantAEvent = UUID.randomUUID();
-        UUID tenantBEvent = UUID.randomUUID();
+        UUID sharedClientEventId = UUID.randomUUID();
         UUID otherEmployeeEvent = UUID.randomUUID();
         UUID approvedAdjustment = UUID.randomUUID();
+        UUID tenantBApprovedAdjustment = UUID.randomUUID();
         UUID pendingAdjustment = UUID.randomUUID();
 
-        insertEvent(UUID.randomUUID(), "tenant-a", "employee-1", tenantAEvent, "2026-08-12T12:00:00Z");
-        insertEvent(UUID.randomUUID(), "tenant-b", "employee-1", tenantBEvent, "2026-08-12T12:00:00Z");
+        insertEvent(UUID.randomUUID(), "tenant-a", "employee-1", sharedClientEventId, "2026-08-12T12:00:00Z");
+        insertEvent(UUID.randomUUID(), "tenant-b", "employee-1", sharedClientEventId, "2026-08-12T12:00:00Z");
         insertEvent(UUID.randomUUID(), "tenant-a", "employee-2", otherEmployeeEvent, "2026-08-12T12:00:00Z");
 
-        insertAdjustment(approvedAdjustment, "tenant-a", "employee-1", tenantAEvent, "APPROVED");
-        insertAdjustment(pendingAdjustment, "tenant-a", "employee-1", tenantAEvent, "PENDING_APPROVAL");
+        insertAdjustment(approvedAdjustment, "tenant-a", "employee-1", sharedClientEventId, "APPROVED");
+        insertAdjustment(tenantBApprovedAdjustment, "tenant-b", "employee-1", sharedClientEventId, "APPROVED");
+        insertAdjustment(pendingAdjustment, "tenant-a", "employee-1", sharedClientEventId, "PENDING_APPROVAL");
 
         List<TimesheetItem> result = service.read(
                 "tenant-a",
@@ -71,19 +72,23 @@ class TimesheetReadPostgresTest {
         );
 
         assertThat(result).hasSize(1);
-        assertThat(result.getFirst().clientEventId()).isEqualTo(tenantAEvent);
+        assertThat(result.getFirst().clientEventId()).isEqualTo(sharedClientEventId);
         assertThat(result.getFirst().approvedAdjustmentIds()).containsExactly(approvedAdjustment);
-        assertThat(result).noneMatch(item -> item.clientEventId().equals(tenantBEvent));
+        assertThat(result.getFirst().approvedAdjustmentIds()).doesNotContain(tenantBApprovedAdjustment, pendingAdjustment);
         assertThat(result).noneMatch(item -> item.clientEventId().equals(otherEmployeeEvent));
     }
 
     @Test
-    void excludesEventsOutsideBusinessZoneCompetenceWindow() {
-        UUID julyInSaoPaulo = UUID.randomUUID();
-        UUID augustInSaoPaulo = UUID.randomUUID();
+    void enforcesBothCompetenceBoundariesInBusinessZone() {
+        UUID beforeAugust = UUID.randomUUID();
+        UUID augustStart = UUID.randomUUID();
+        UUID augustEnd = UUID.randomUUID();
+        UUID septemberStart = UUID.randomUUID();
 
-        insertEvent(UUID.randomUUID(), "tenant-a", "employee-1", julyInSaoPaulo, "2026-08-01T02:59:59Z");
-        insertEvent(UUID.randomUUID(), "tenant-a", "employee-1", augustInSaoPaulo, "2026-08-01T03:00:00Z");
+        insertEvent(UUID.randomUUID(), "tenant-a", "employee-1", beforeAugust, "2026-08-01T02:59:59Z");
+        insertEvent(UUID.randomUUID(), "tenant-a", "employee-1", augustStart, "2026-08-01T03:00:00Z");
+        insertEvent(UUID.randomUUID(), "tenant-a", "employee-1", augustEnd, "2026-09-01T02:59:59Z");
+        insertEvent(UUID.randomUUID(), "tenant-a", "employee-1", septemberStart, "2026-09-01T03:00:00Z");
 
         List<TimesheetItem> result = service.read(
                 "tenant-a",
@@ -93,7 +98,8 @@ class TimesheetReadPostgresTest {
         );
 
         assertThat(result).extracting(TimesheetItem::clientEventId)
-                .containsExactly(augustInSaoPaulo);
+                .containsExactly(augustStart, augustEnd)
+                .doesNotContain(beforeAugust, septemberStart);
     }
 
     private void insertEvent(UUID id, String tenantId, String employeeId, UUID clientEventId, String occurredAt) {
