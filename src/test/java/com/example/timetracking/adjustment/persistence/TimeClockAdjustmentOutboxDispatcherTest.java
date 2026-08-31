@@ -2,6 +2,7 @@ package com.example.timetracking.adjustment.persistence;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
@@ -39,7 +40,7 @@ class TimeClockAdjustmentOutboxDispatcherTest {
         dispatcher.dispatchPending();
 
         verify(operations).convertAndSend("exchange", "routing", message);
-        verify(operations).waitForConfirmsOrDie(any());
+        verify(operations).waitForConfirmsOrDie(anyLong());
         verify(jdbcTemplate).update(
                 eq("update time_clock_adjustment_outbox set published_at = ?, last_error = null where id = ? and published_at is null"),
                 any(Instant.class), eq(message.id()));
@@ -58,7 +59,7 @@ class TimeClockAdjustmentOutboxDispatcherTest {
             return callback.doInRabbit(operations);
         });
         org.mockito.Mockito.doThrow(new IllegalStateException("broker unavailable"))
-                .when(operations).waitForConfirmsOrDie(any());
+                .when(operations).waitForConfirmsOrDie(anyLong());
 
         var dispatcher = new TimeClockAdjustmentOutboxDispatcher(
                 jdbcTemplate, rabbitTemplate, "exchange", "routing", 50);
