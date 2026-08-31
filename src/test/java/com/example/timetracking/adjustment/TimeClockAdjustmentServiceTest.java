@@ -70,20 +70,61 @@ class TimeClockAdjustmentServiceTest {
                 "tenant-a", pending.id(), TimeClockAdjustmentStatus.REJECTED, "rh-a"));
     }
 
+    @Test
+    void losingConcurrentDecisionReloadsCommittedState() {
+        InMemoryStore store = new InMemoryStore();
+        TimeClockAdjustment pending = TimeClockAdjustment.request(
+                "tenant-a", "employee-1", UUID.randomUUID(), "forgot exit", "employee-1", REQUESTED_AT);
+        store.save(pending);
+        store.concurrentWinner = pending.decide(
+                TimeClockAdjustmentStatus.APPROVED, "rh-winner", DECIDED_AT.minusSeconds(1));
+        var service = new TimeClockAdjustmentService(store, Clock.fixed(DECIDED_AT, ZoneOffset.UTC));
+
+        TimeClockAdjustment replay = service.decide(
+                "tenant-a", pending.id(), TimeClockAdjustmentStatus.APPROVED, "rh-loser");
+
+        assertEquals("rh-winner", replay.decidedBy());
+        assertEquals(DECIDED_AT.minusSeconds(1), replay.decidedAt());
+    }
+
     private static final class InMemoryStore implements TimeClockAdjustmentStore {
         private final Map<String, TimeClockAdjustment> data = new HashMap<>();
         private int saveCount;
+        private TimeClockAdjustment concurrentWinner;
 
         @Override
-        public TimeClockAdjustment save(TimeClockAdjustment adjustment) {
+        public synchronized TimeClockAdjustment save(TimeClockAdjustment adjustment) {
             saveCount++;
             data.put(key(adjustment.tenantId(), adjustment.id()), adjustment);
             return adjustment;
         }
 
         @Override
-        public Optional<TimeClockAdjustment> findByTenantIdAndId(String tenantId, UUID id) {
+        public synchronized Optional<TimeClockAdjustment> findByTenantIdAndId(String tenantId, UUID id) {
             return Optional.ofNullable(data.get(key(tenantId, id)));
+        }
+
+        @Override
+        public synchronized Optional<TimeClockAdjustment> decideIfPending(
+                String tenantId,
+                UUID id,
+                TimeClockAdjustmentStatus decision,
+                String actor,
+                Instant decidedAt
+        ) {
+            String key = key(tenantId, id);
+            TimeClockAdjustment current = data.get(key);
+            if (current == null || current.status() != TimeClockAdjustmentStatus.PENDING_APPROVAL) {
+                return Optional.empty();
+            }
+            if (concurrentWinner != null) {
+                data.put(key, concurrentWinner);
+                concurrentWinner = null;
+                return Optional.empty();
+            }
+            TimeClockAdjustment decided = current.decide(decision, actor, decidedAt);
+            data.put(key, decided);
+            return Optional.of(decided);
         }
 
         private String key(String tenantId, UUID id) {
