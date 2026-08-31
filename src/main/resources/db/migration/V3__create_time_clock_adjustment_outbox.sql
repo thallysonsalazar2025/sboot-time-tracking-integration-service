@@ -15,5 +15,4 @@ create table if not exists time_clock_adjustment_outbox (
 );
 
 create index if not exists idx_time_clock_adjustment_outbox_pending
-    on time_clock_adjustment_outbox (created_at)
-    where published_at is null;
+    on time_clock_adjustment_outbox (published_at, created_at);
