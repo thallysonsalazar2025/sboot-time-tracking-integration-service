@@ -1,6 +1,5 @@
 package com.example.timetracking.adjustment.persistence;
 
-import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
@@ -67,7 +66,7 @@ public class TimeClockAdjustmentOutboxDispatcher {
         try {
             rabbitTemplate.invoke(operations -> {
                 operations.convertAndSend(exchange, routingKey, message);
-                operations.waitForConfirmsOrDie(Duration.ofSeconds(5));
+                operations.waitForConfirmsOrDie(5_000L);
                 return null;
             });
             jdbcTemplate.update(
