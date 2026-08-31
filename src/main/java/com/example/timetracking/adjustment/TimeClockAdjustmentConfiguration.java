@@ -13,7 +13,11 @@ public class TimeClockAdjustmentConfiguration {
     }
 
     @Bean
-    TimeClockAdjustmentService timeClockAdjustmentService(TimeClockAdjustmentStore store, Clock timeClockAdjustmentClock) {
-        return new TimeClockAdjustmentService(store, timeClockAdjustmentClock);
+    TimeClockAdjustmentService timeClockAdjustmentService(
+            TimeClockAdjustmentStore store,
+            Clock timeClockAdjustmentClock,
+            TimeClockAdjustmentEventPublisher eventPublisher
+    ) {
+        return new TimeClockAdjustmentService(store, timeClockAdjustmentClock, eventPublisher);
     }
 }
