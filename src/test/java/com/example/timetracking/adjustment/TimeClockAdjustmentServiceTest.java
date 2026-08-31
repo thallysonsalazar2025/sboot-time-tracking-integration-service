@@ -55,18 +55,18 @@ class TimeClockAdjustmentServiceTest {
     }
 
     @Test
-    void rejectsCrossTenantLookupAndContradictorySecondDecision() {
+    void classifiesCrossTenantLookupAndContradictorySecondDecision() {
         InMemoryStore store = new InMemoryStore();
         TimeClockAdjustment pending = TimeClockAdjustment.request(
                 "tenant-a", "employee-1", UUID.randomUUID(), "forgot exit", "employee-1", REQUESTED_AT);
         store.save(pending);
         var service = new TimeClockAdjustmentService(store, Clock.fixed(DECIDED_AT, ZoneOffset.UTC));
 
-        assertThrows(IllegalArgumentException.class, () -> service.decide(
+        assertThrows(TimeClockAdjustmentNotFoundException.class, () -> service.decide(
                 "tenant-b", pending.id(), TimeClockAdjustmentStatus.APPROVED, "rh-b"));
 
         service.decide("tenant-a", pending.id(), TimeClockAdjustmentStatus.APPROVED, "rh-a");
-        assertThrows(IllegalStateException.class, () -> service.decide(
+        assertThrows(TimeClockAdjustmentDecisionConflictException.class, () -> service.decide(
                 "tenant-a", pending.id(), TimeClockAdjustmentStatus.REJECTED, "rh-a"));
     }
 
