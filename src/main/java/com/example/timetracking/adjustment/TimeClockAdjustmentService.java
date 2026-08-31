@@ -3,6 +3,7 @@ package com.example.timetracking.adjustment;
 import java.time.Clock;
 import java.time.Instant;
 import java.util.UUID;
+import org.springframework.transaction.annotation.Transactional;
 
 public final class TimeClockAdjustmentService {
     private final TimeClockAdjustmentStore store;
@@ -23,6 +24,7 @@ public final class TimeClockAdjustmentService {
         this.eventPublisher = eventPublisher;
     }
 
+    @Transactional
     public TimeClockAdjustment decide(
             String tenantId,
             UUID adjustmentId,
