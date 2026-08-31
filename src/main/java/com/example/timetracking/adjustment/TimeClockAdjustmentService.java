@@ -7,10 +7,20 @@ import java.util.UUID;
 public final class TimeClockAdjustmentService {
     private final TimeClockAdjustmentStore store;
     private final Clock clock;
+    private final TimeClockAdjustmentEventPublisher eventPublisher;
 
     public TimeClockAdjustmentService(TimeClockAdjustmentStore store, Clock clock) {
+        this(store, clock, TimeClockAdjustmentEventPublisher.noop());
+    }
+
+    public TimeClockAdjustmentService(
+            TimeClockAdjustmentStore store,
+            Clock clock,
+            TimeClockAdjustmentEventPublisher eventPublisher
+    ) {
         this.store = store;
         this.clock = clock;
+        this.eventPublisher = eventPublisher;
     }
 
     public TimeClockAdjustment decide(
@@ -30,6 +40,12 @@ public final class TimeClockAdjustmentService {
         current.decide(decision, actor, decidedAt);
 
         return store.decideIfPending(tenantId, adjustmentId, decision, actor, decidedAt)
+                .map(committed -> {
+                    if (committed.status() == TimeClockAdjustmentStatus.APPROVED) {
+                        eventPublisher.publishApproved(committed);
+                    }
+                    return committed;
+                })
                 .orElseGet(() -> {
                     TimeClockAdjustment committed = store.findByTenantIdAndId(tenantId, adjustmentId)
                             .orElseThrow(TimeClockAdjustmentNotFoundException::new);
