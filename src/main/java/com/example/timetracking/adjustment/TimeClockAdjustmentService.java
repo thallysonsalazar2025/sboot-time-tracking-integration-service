@@ -5,7 +5,7 @@ import java.time.Instant;
 import java.util.UUID;
 import org.springframework.transaction.annotation.Transactional;
 
-public final class TimeClockAdjustmentService {
+public class TimeClockAdjustmentService {
     private final TimeClockAdjustmentStore store;
     private final Clock clock;
     private final TimeClockAdjustmentEventPublisher eventPublisher;
