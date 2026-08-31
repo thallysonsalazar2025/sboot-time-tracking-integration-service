@@ -35,6 +35,24 @@ class TimeClockAdjustmentServiceTest {
     }
 
     @Test
+    void publishesApprovedOnlyForTheWinningCommittedTransition() {
+        InMemoryStore store = new InMemoryStore();
+        RecordingPublisher publisher = new RecordingPublisher();
+        TimeClockAdjustment pending = TimeClockAdjustment.request(
+                "tenant-a", "employee-1", UUID.randomUUID(), "forgot exit", "employee-1", REQUESTED_AT);
+        store.save(pending);
+        var service = new TimeClockAdjustmentService(
+                store, Clock.fixed(DECIDED_AT, ZoneOffset.UTC), publisher);
+
+        service.decide("tenant-a", pending.id(), TimeClockAdjustmentStatus.APPROVED, "rh-user");
+        service.decide("tenant-a", pending.id(), TimeClockAdjustmentStatus.APPROVED, "rh-replay");
+
+        assertEquals(1, publisher.approvedCount);
+        assertEquals(pending.id(), publisher.lastApproved.id());
+        assertEquals("tenant-a", publisher.lastApproved.tenantId());
+    }
+
+    @Test
     void sameTerminalDecisionIsIdempotentAndDoesNotRewriteAuditMetadata() {
         InMemoryStore store = new InMemoryStore();
         TimeClockAdjustment pending = TimeClockAdjustment.request(
@@ -73,18 +91,32 @@ class TimeClockAdjustmentServiceTest {
     @Test
     void losingConcurrentDecisionReloadsCommittedState() {
         InMemoryStore store = new InMemoryStore();
+        RecordingPublisher publisher = new RecordingPublisher();
         TimeClockAdjustment pending = TimeClockAdjustment.request(
                 "tenant-a", "employee-1", UUID.randomUUID(), "forgot exit", "employee-1", REQUESTED_AT);
         store.save(pending);
         store.concurrentWinner = pending.decide(
                 TimeClockAdjustmentStatus.APPROVED, "rh-winner", DECIDED_AT.minusSeconds(1));
-        var service = new TimeClockAdjustmentService(store, Clock.fixed(DECIDED_AT, ZoneOffset.UTC));
+        var service = new TimeClockAdjustmentService(
+                store, Clock.fixed(DECIDED_AT, ZoneOffset.UTC), publisher);
 
         TimeClockAdjustment replay = service.decide(
                 "tenant-a", pending.id(), TimeClockAdjustmentStatus.APPROVED, "rh-loser");
 
         assertEquals("rh-winner", replay.decidedBy());
         assertEquals(DECIDED_AT.minusSeconds(1), replay.decidedAt());
+        assertEquals(0, publisher.approvedCount);
+    }
+
+    private static final class RecordingPublisher implements TimeClockAdjustmentEventPublisher {
+        private int approvedCount;
+        private TimeClockAdjustment lastApproved;
+
+        @Override
+        public void publishApproved(TimeClockAdjustment adjustment) {
+            approvedCount++;
+            lastApproved = adjustment;
+        }
     }
 
     private static final class InMemoryStore implements TimeClockAdjustmentStore {
