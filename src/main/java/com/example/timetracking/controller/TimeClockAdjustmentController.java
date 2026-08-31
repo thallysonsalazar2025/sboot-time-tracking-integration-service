@@ -3,7 +3,6 @@ package com.example.timetracking.controller;
 import com.example.timetracking.adjustment.TimeClockAdjustment;
 import com.example.timetracking.adjustment.TimeClockAdjustmentService;
 import com.example.timetracking.adjustment.TimeClockAdjustmentStatus;
-import java.time.Instant;
 import java.util.UUID;
 import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.PatchMapping;
@@ -54,7 +53,7 @@ public class TimeClockAdjustmentController {
             String employeeId,
             TimeClockAdjustmentStatus status,
             String decidedBy,
-            Instant decidedAt
+            String decidedAt
     ) {
         static DecisionResponse from(TimeClockAdjustment adjustment) {
             return new DecisionResponse(
@@ -63,7 +62,7 @@ public class TimeClockAdjustmentController {
                     adjustment.employeeId(),
                     adjustment.status(),
                     adjustment.decidedBy(),
-                    adjustment.decidedAt());
+                    adjustment.decidedAt().toString());
         }
     }
 }
