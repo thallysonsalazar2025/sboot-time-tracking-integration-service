@@ -7,6 +7,7 @@ import org.junit.jupiter.api.Test;
 
 import java.time.Instant;
 import java.time.YearMonth;
+import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
@@ -15,6 +16,8 @@ import java.util.UUID;
 import static org.assertj.core.api.Assertions.assertThat;
 
 class TimesheetReadServiceTest {
+    private static final ZoneId SAO_PAULO = ZoneId.of("America/Sao_Paulo");
+
     @Test
     void preservesOriginalsAndAnnotatesOnlyApprovedAdjustments() {
         UUID eventId = UUID.randomUUID();
@@ -26,7 +29,8 @@ class TimesheetReadServiceTest {
                 "gestor-1", Instant.parse("2026-08-11T11:00:00Z"));
         CapturingRepository repository = new CapturingRepository(List.of(event), List.of(adjustment));
 
-        List<TimesheetItem> result = new TimesheetReadService(repository).read("tenant-a", "emp-1", YearMonth.of(2026, 8));
+        List<TimesheetItem> result = new TimesheetReadService(repository)
+                .read("tenant-a", "emp-1", YearMonth.of(2026, 8), SAO_PAULO);
 
         assertThat(result).containsExactly(new TimesheetItem(eventId, event.occurredAt(), TimesheetOrigin.ORIGINAL, List.of(adjustmentId)));
         assertThat(repository.tenantId).isEqualTo("tenant-a");
@@ -35,10 +39,21 @@ class TimesheetReadServiceTest {
     }
 
     @Test
+    void usesBusinessTimezoneForCompetenceBoundaries() {
+        CapturingRepository repository = new CapturingRepository(List.of(), List.of());
+
+        new TimesheetReadService(repository).read("tenant-a", "emp-1", YearMonth.of(2026, 8), SAO_PAULO);
+
+        assertThat(repository.fromInclusive).isEqualTo(Instant.parse("2026-08-01T03:00:00Z"));
+        assertThat(repository.toExclusive).isEqualTo(Instant.parse("2026-09-01T03:00:00Z"));
+    }
+
+    @Test
     void emptyMonthDoesNotQueryAdjustmentsWithFabricatedIds() {
         CapturingRepository repository = new CapturingRepository(List.of(), List.of());
 
-        assertThat(new TimesheetReadService(repository).read("tenant-a", "emp-1", YearMonth.of(2026, 8))).isEmpty();
+        assertThat(new TimesheetReadService(repository)
+                .read("tenant-a", "emp-1", YearMonth.of(2026, 8), SAO_PAULO)).isEmpty();
         assertThat(repository.eventIds).isEmpty();
     }
 
@@ -47,6 +62,8 @@ class TimesheetReadServiceTest {
         private final List<TimeClockAdjustment> adjustments;
         private String tenantId;
         private String employeeId;
+        private Instant fromInclusive;
+        private Instant toExclusive;
         private Collection<UUID> eventIds = new ArrayList<>();
 
         private CapturingRepository(List<TimeClockEvent> events, List<TimeClockAdjustment> adjustments) {
@@ -58,6 +75,8 @@ class TimesheetReadServiceTest {
         public List<TimeClockEvent> findOriginalEvents(String tenantId, String employeeId, Instant fromInclusive, Instant toExclusive) {
             this.tenantId = tenantId;
             this.employeeId = employeeId;
+            this.fromInclusive = fromInclusive;
+            this.toExclusive = toExclusive;
             return events;
         }
 
