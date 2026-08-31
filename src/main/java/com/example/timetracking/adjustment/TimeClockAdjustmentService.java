@@ -23,13 +23,27 @@ public final class TimeClockAdjustmentService {
                 .orElseThrow(() -> new IllegalArgumentException("adjustment not found"));
 
         if (current.status() != TimeClockAdjustmentStatus.PENDING_APPROVAL) {
-            if (current.status() == decision) {
-                return current;
-            }
-            throw new IllegalStateException("adjustment already decided");
+            return resolveTerminalReplay(current, decision);
         }
 
         Instant decidedAt = clock.instant();
-        return store.save(current.decide(decision, actor, decidedAt));
+        current.decide(decision, actor, decidedAt);
+
+        return store.decideIfPending(tenantId, adjustmentId, decision, actor, decidedAt)
+                .orElseGet(() -> {
+                    TimeClockAdjustment committed = store.findByTenantIdAndId(tenantId, adjustmentId)
+                            .orElseThrow(() -> new IllegalArgumentException("adjustment not found"));
+                    return resolveTerminalReplay(committed, decision);
+                });
+    }
+
+    private TimeClockAdjustment resolveTerminalReplay(
+            TimeClockAdjustment current,
+            TimeClockAdjustmentStatus requestedDecision
+    ) {
+        if (current.status() == requestedDecision) {
+            return current;
+        }
+        throw new IllegalStateException("adjustment already decided");
     }
 }
