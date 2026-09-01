@@ -14,6 +14,7 @@ import java.util.List;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class TimesheetReadServiceTest {
     private static final ZoneId SAO_PAULO = ZoneId.of("America/Sao_Paulo");
@@ -54,6 +55,29 @@ class TimesheetReadServiceTest {
 
         assertThat(new TimesheetReadService(repository)
                 .read("tenant-a", "emp-1", YearMonth.of(2026, 8), SAO_PAULO)).isEmpty();
+        assertThat(repository.eventIds).isEmpty();
+    }
+
+    @Test
+    void rejectsMissingReadContextBeforeRepositoryAccess() {
+        CapturingRepository repository = new CapturingRepository(List.of(), List.of());
+        TimesheetReadService service = new TimesheetReadService(repository);
+
+        assertThatThrownBy(() -> service.read(" ", "emp-1", YearMonth.of(2026, 8), SAO_PAULO))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("tenantId is required");
+        assertThatThrownBy(() -> service.read("tenant-a", " ", YearMonth.of(2026, 8), SAO_PAULO))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("employeeId is required");
+        assertThatThrownBy(() -> service.read("tenant-a", "emp-1", null, SAO_PAULO))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("competence is required");
+        assertThatThrownBy(() -> service.read("tenant-a", "emp-1", YearMonth.of(2026, 8), null))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("businessZone is required");
+
+        assertThat(repository.tenantId).isNull();
+        assertThat(repository.employeeId).isNull();
         assertThat(repository.eventIds).isEmpty();
     }
 
