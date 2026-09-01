@@ -1,5 +1,8 @@
 package com.example.timetracking.controller;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertInstanceOf;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -14,6 +17,8 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.http.HttpStatus;
+import org.springframework.web.server.ResponseStatusException;
 import reactor.test.StepVerifier;
 
 @ExtendWith(MockitoExtension.class)
@@ -23,7 +28,7 @@ class TimeClockSyncControllerTest {
     private TimeClockBatchSyncService syncService;
 
     @Test
-    void forwardsOnlyTrustedTenantHeaderToBatchService() {
+    void forwardsTrustedTenantAndOwnedEmployeeBatchToService() {
         TimeClockSyncController controller = new TimeClockSyncController(syncService);
         UUID eventId = UUID.randomUUID();
         List<TimeClockSyncItem> items = List.of(
@@ -34,10 +39,41 @@ class TimeClockSyncControllerTest {
         );
         when(syncService.sync("tenant-a", items)).thenReturn(expected);
 
-        StepVerifier.create(controller.sync("tenant-a", items))
+        StepVerifier.create(controller.sync("tenant-a", "employee-1", items))
                 .expectNext(expected)
                 .verifyComplete();
 
         verify(syncService).sync("tenant-a", items);
+    }
+
+    @Test
+    void rejectsBatchWhenAuthenticatedEmployeeDoesNotOwnEvent() {
+        TimeClockSyncController controller = new TimeClockSyncController(syncService);
+        List<TimeClockSyncItem> items = List.of(
+                new TimeClockSyncItem("employee-b", UUID.randomUUID(), Instant.parse("2026-08-30T04:30:00Z"))
+        );
+
+        StepVerifier.create(controller.sync("tenant-a", "employee-a", items))
+                .expectErrorSatisfies(error -> {
+                    ResponseStatusException response = assertInstanceOf(ResponseStatusException.class, error);
+                    assertEquals(HttpStatus.FORBIDDEN, response.getStatusCode());
+                })
+                .verify();
+
+        verify(syncService, never()).sync("tenant-a", items);
+    }
+
+    @Test
+    void rejectsBlankAuthenticatedEmployee() {
+        TimeClockSyncController controller = new TimeClockSyncController(syncService);
+        List<TimeClockSyncItem> items = List.of(
+                new TimeClockSyncItem("employee-a", UUID.randomUUID(), Instant.parse("2026-08-30T04:30:00Z"))
+        );
+
+        StepVerifier.create(controller.sync("tenant-a", " ", items))
+                .expectError(ResponseStatusException.class)
+                .verify();
+
+        verify(syncService, never()).sync("tenant-a", items);
     }
 }
