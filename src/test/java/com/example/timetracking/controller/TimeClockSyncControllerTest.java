@@ -1,5 +1,7 @@
 package com.example.timetracking.controller;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -53,9 +55,8 @@ class TimeClockSyncControllerTest {
 
         StepVerifier.create(controller.sync("tenant-a", "employee-a", items))
                 .expectErrorSatisfies(error -> {
-                    assert error instanceof ResponseStatusException;
-                    ResponseStatusException response = (ResponseStatusException) error;
-                    assert response.getStatusCode().equals(HttpStatus.FORBIDDEN);
+                    ResponseStatusException response = assertInstanceOf(ResponseStatusException.class, error);
+                    assertEquals(HttpStatus.FORBIDDEN, response.getStatusCode());
                 })
                 .verify();
 
