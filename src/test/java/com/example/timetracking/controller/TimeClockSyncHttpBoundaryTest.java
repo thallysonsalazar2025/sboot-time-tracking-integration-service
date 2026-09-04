@@ -74,6 +74,20 @@ class TimeClockSyncHttpBoundaryTest {
     }
 
     @Test
+    void missingTrustedEmployeeHeaderFailsAtHttpBoundary() {
+        UUID eventId = UUID.randomUUID();
+
+        client.post()
+                .uri("/api/time-clock/events/sync")
+                .header("X-Authenticated-Tenant-Id", "tenant-a")
+                .contentType(MediaType.APPLICATION_JSON)
+                .bodyValue("[{\"employeeId\":\"employee-a\",\"clientEventId\":\"" + eventId
+                        + "\",\"occurredAt\":\"2026-09-04T12:00:00Z\"}]")
+                .exchange()
+                .expectStatus().isBadRequest();
+    }
+
+    @Test
     void malformedCorrelationIdIsReplacedWithServerUuid() {
         UUID eventId = UUID.randomUUID();
 
