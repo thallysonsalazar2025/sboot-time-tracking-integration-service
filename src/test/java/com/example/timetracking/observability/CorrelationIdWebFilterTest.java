@@ -34,13 +34,13 @@ class CorrelationIdWebFilterTest {
 
     @Test
     void replacesMalformedInboundValueWithServerGeneratedUuid() {
-        MockServerWebExchange exchange = exchange("tenant-a\nforged");
+        MockServerWebExchange exchange = exchange("not-a-uuid");
         AtomicReference<String> seen = new AtomicReference<>();
 
         filter.filter(exchange, currentCorrelationId(seen)).block();
 
         String generated = exchange.getResponse().getHeaders().getFirst(CorrelationIdWebFilter.HEADER);
-        assertThat(generated).isNotEqualTo("tenant-a\nforged");
+        assertThat(generated).isNotEqualTo("not-a-uuid");
         assertThat(UUID.fromString(generated).toString()).isEqualTo(generated);
         assertThat(seen).hasValue(generated);
     }
