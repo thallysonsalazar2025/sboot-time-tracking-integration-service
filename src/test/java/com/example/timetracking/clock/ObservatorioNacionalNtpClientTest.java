@@ -142,6 +142,8 @@ class ObservatorioNacionalNtpClientTest {
         assertThrows(IllegalArgumentException.class,
                 () -> new ObservatorioNacionalNtpClient(List.of("127.0.0.1"), 123, Duration.ZERO, Clock.systemUTC()));
         assertThrows(IllegalArgumentException.class,
+                () -> new ObservatorioNacionalNtpClient(List.of("127.0.0.1"), 123, Duration.ofNanos(1), Clock.systemUTC()));
+        assertThrows(IllegalArgumentException.class,
                 () -> new ObservatorioNacionalNtpClient(List.of("127.0.0.1"), 123, Duration.ofSeconds(-1), Clock.systemUTC()));
         assertThrows(NullPointerException.class,
                 () -> new ObservatorioNacionalNtpClient(List.of("127.0.0.1"), 123, Duration.ofSeconds(1), null));
@@ -159,6 +161,9 @@ class ObservatorioNacionalNtpClientTest {
 
             Instant t1 = ObservatorioNacionalNtpClient.readTimestamp(requestBytes, 40);
             byte[] response = validResponse(t1);
+            // The NTP originate timestamp must echo the client's transmit timestamp byte-for-byte.
+            // Decoding and re-encoding can lose one fractional NTP tick due to integer conversion.
+            System.arraycopy(requestBytes, 40, response, 24, 8);
             DatagramPacket reply = new DatagramPacket(
                     response,
                     response.length,
