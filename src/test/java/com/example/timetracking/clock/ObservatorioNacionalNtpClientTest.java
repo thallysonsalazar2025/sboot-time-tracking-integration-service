@@ -44,6 +44,23 @@ class ObservatorioNacionalNtpClientTest {
     }
 
     @Test
+    void failsClosedWhenConfiguredServerDoesNotAnswer() throws Exception {
+        try (DatagramSocket unused = new DatagramSocket(0, InetAddress.getLoopbackAddress())) {
+            int port = unused.getLocalPort();
+            unused.close();
+            ObservatorioNacionalNtpClient client = new ObservatorioNacionalNtpClient(
+                    List.of(InetAddress.getLoopbackAddress().getHostAddress()),
+                    port,
+                    Duration.ofMillis(50),
+                    Clock.systemUTC()
+            );
+
+            IOException failure = assertThrows(IOException.class, client::measure);
+            assertTrue(failure.getMessage().contains("Unable to obtain NTP response"));
+        }
+    }
+
+    @Test
     void ntpTimestampRoundTripKeepsSubsecondPrecision() {
         Instant original = Instant.parse("2026-09-04T06:40:36.123456789Z");
         byte[] packet = new byte[48];
@@ -63,33 +80,75 @@ class ObservatorioNacionalNtpClientTest {
     }
 
     @Test
-    void rejectsUnsynchronizedWrongModeAndOriginateMismatch() {
+    void rejectsInvalidPacketShapeAndProtocolMetadata() {
         Instant t1 = Instant.parse("2026-09-04T06:40:36Z");
+        assertThrows(IOException.class,
+                () -> ObservatorioNacionalNtpClient.validateResponse(null, t1));
+        assertThrows(IOException.class,
+                () -> ObservatorioNacionalNtpClient.validateResponse(new byte[47], t1));
 
         byte[] unsynchronized = validResponse(t1);
         unsynchronized[0] = (byte) 0xE4;
         assertThrows(IOException.class,
                 () -> ObservatorioNacionalNtpClient.validateResponse(unsynchronized, t1));
 
+        byte[] oldVersion = validResponse(t1);
+        oldVersion[0] = 0x14; // LI=0, VN=2, mode=4
+        assertThrows(IOException.class,
+                () -> ObservatorioNacionalNtpClient.validateResponse(oldVersion, t1));
+
         byte[] clientMode = validResponse(t1);
         clientMode[0] = 0x23;
         assertThrows(IOException.class,
                 () -> ObservatorioNacionalNtpClient.validateResponse(clientMode, t1));
 
+        byte[] kissOfDeath = validResponse(t1);
+        kissOfDeath[1] = 0;
+        assertThrows(IOException.class,
+                () -> ObservatorioNacionalNtpClient.validateResponse(kissOfDeath, t1));
+
+        byte[] invalidStratum = validResponse(t1);
+        invalidStratum[1] = 16;
+        assertThrows(IOException.class,
+                () -> ObservatorioNacionalNtpClient.validateResponse(invalidStratum, t1));
+    }
+
+    @Test
+    void rejectsOriginateMismatchAndImpossibleServerOrdering() {
+        Instant t1 = Instant.parse("2026-09-04T06:40:36Z");
+
         byte[] mismatch = validResponse(t1);
         ObservatorioNacionalNtpClient.writeTimestamp(mismatch, 24, t1.minusSeconds(1));
         assertThrows(IOException.class,
                 () -> ObservatorioNacionalNtpClient.validateResponse(mismatch, t1));
+
+        byte[] backwards = validResponse(t1);
+        ObservatorioNacionalNtpClient.writeTimestamp(backwards, 32, t1.plusMillis(20));
+        ObservatorioNacionalNtpClient.writeTimestamp(backwards, 40, t1.plusMillis(10));
+        assertThrows(IOException.class,
+                () -> ObservatorioNacionalNtpClient.validateResponse(backwards, t1));
     }
 
     @Test
-    void validatesConfigurationFailClosed() {
+    void validatesConfigurationAndMeasurementFailClosed() {
+        assertThrows(NullPointerException.class,
+                () -> new ObservatorioNacionalNtpClient(null, 123, Duration.ofSeconds(1), Clock.systemUTC()));
         assertThrows(IllegalArgumentException.class,
                 () -> new ObservatorioNacionalNtpClient(List.of(), 123, Duration.ofSeconds(1), Clock.systemUTC()));
         assertThrows(IllegalArgumentException.class,
                 () -> new ObservatorioNacionalNtpClient(List.of("127.0.0.1"), 0, Duration.ofSeconds(1), Clock.systemUTC()));
         assertThrows(IllegalArgumentException.class,
+                () -> new ObservatorioNacionalNtpClient(List.of("127.0.0.1"), 65_536, Duration.ofSeconds(1), Clock.systemUTC()));
+        assertThrows(IllegalArgumentException.class,
                 () -> new ObservatorioNacionalNtpClient(List.of("127.0.0.1"), 123, Duration.ZERO, Clock.systemUTC()));
+        assertThrows(IllegalArgumentException.class,
+                () -> new ObservatorioNacionalNtpClient(List.of("127.0.0.1"), 123, Duration.ofSeconds(-1), Clock.systemUTC()));
+        assertThrows(NullPointerException.class,
+                () -> new ObservatorioNacionalNtpClient(List.of("127.0.0.1"), 123, Duration.ofSeconds(1), null));
+        assertThrows(IllegalArgumentException.class,
+                () -> new ObservatorioNacionalNtpClient.Measurement(" ", validExchange()));
+        assertThrows(NullPointerException.class,
+                () -> new ObservatorioNacionalNtpClient.Measurement("127.0.0.1", null));
     }
 
     private static void respondOnce(DatagramSocket server) {
@@ -120,5 +179,10 @@ class ObservatorioNacionalNtpClientTest {
         ObservatorioNacionalNtpClient.writeTimestamp(response, 32, t1.plusMillis(10));
         ObservatorioNacionalNtpClient.writeTimestamp(response, 40, t1.plusMillis(12));
         return response;
+    }
+
+    private static NtpExchange validExchange() {
+        Instant t1 = Instant.parse("2026-09-04T06:40:36Z");
+        return new NtpExchange(t1, t1.plusMillis(10), t1.plusMillis(12), t1.plusMillis(20));
     }
 }
