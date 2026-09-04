@@ -46,8 +46,9 @@ public final class ObservatorioNacionalNtpClient {
         }
         this.port = port;
         this.timeout = Objects.requireNonNull(timeout, "timeout");
-        if (timeout.isZero() || timeout.isNegative() || timeout.toMillis() > Integer.MAX_VALUE) {
-            throw new IllegalArgumentException("timeout must be positive and fit DatagramSocket timeout");
+        long timeoutMillis = timeout.toMillis();
+        if (timeout.isNegative() || timeoutMillis < 1 || timeoutMillis > Integer.MAX_VALUE) {
+            throw new IllegalArgumentException("timeout must be at least 1ms and fit DatagramSocket timeout");
         }
         this.clock = Objects.requireNonNull(clock, "clock");
     }
