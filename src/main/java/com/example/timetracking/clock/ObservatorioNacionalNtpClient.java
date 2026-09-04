@@ -8,6 +8,7 @@ import java.net.SocketTimeoutException;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
 
@@ -121,8 +122,7 @@ public final class ObservatorioNacionalNtpClient {
             throw new IOException("Invalid NTP stratum");
         }
 
-        Instant originate = readTimestamp(response, 24);
-        if (!sameNtpTimestamp(originate, t1)) {
+        if (!matchesEncodedTimestamp(response, 24, t1)) {
             throw new IOException("NTP originate timestamp does not match request");
         }
         Instant receive = readTimestamp(response, 32);
@@ -146,12 +146,10 @@ public final class ObservatorioNacionalNtpClient {
         return Instant.ofEpochSecond(seconds - NTP_EPOCH_OFFSET_SECONDS, nanos);
     }
 
-    private static boolean sameNtpTimestamp(Instant left, Instant right) {
-        byte[] a = new byte[8];
-        byte[] b = new byte[8];
-        writeTimestamp(a, 0, left);
-        writeTimestamp(b, 0, right);
-        return java.util.Arrays.equals(a, b);
+    private static boolean matchesEncodedTimestamp(byte[] packet, int offset, Instant expected) {
+        byte[] encoded = new byte[8];
+        writeTimestamp(encoded, 0, expected);
+        return Arrays.equals(encoded, 0, encoded.length, packet, offset, offset + encoded.length);
     }
 
     private static long readUnsignedInt(byte[] data, int offset) {
