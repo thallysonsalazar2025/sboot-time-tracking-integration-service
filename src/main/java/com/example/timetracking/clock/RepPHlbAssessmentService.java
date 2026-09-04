@@ -15,21 +15,40 @@ public final class RepPHlbAssessmentService {
 
     private final ObservatorioNacionalNtpClient ntpClient;
     private final ObservatorioNacionalNtpEvidenceFactory evidenceFactory;
+    private final RepPHlbAssessmentObserver observer;
 
     public RepPHlbAssessmentService(Duration timeout) {
-        this(new ObservatorioNacionalNtpClient(timeout), new ObservatorioNacionalNtpEvidenceFactory());
+        this(
+                new ObservatorioNacionalNtpClient(timeout),
+                new ObservatorioNacionalNtpEvidenceFactory(),
+                RepPHlbAssessmentObserver.noop()
+        );
     }
 
     RepPHlbAssessmentService(
             ObservatorioNacionalNtpClient ntpClient,
             ObservatorioNacionalNtpEvidenceFactory evidenceFactory
     ) {
+        this(ntpClient, evidenceFactory, RepPHlbAssessmentObserver.noop());
+    }
+
+    RepPHlbAssessmentService(
+            ObservatorioNacionalNtpClient ntpClient,
+            ObservatorioNacionalNtpEvidenceFactory evidenceFactory,
+            RepPHlbAssessmentObserver observer
+    ) {
         this.ntpClient = Objects.requireNonNull(ntpClient, "ntpClient");
         this.evidenceFactory = Objects.requireNonNull(evidenceFactory, "evidenceFactory");
+        this.observer = Objects.requireNonNull(observer, "observer");
     }
 
     public Assessment measureAndAssess() throws IOException {
-        return assess(ntpClient.measure());
+        try {
+            return assess(ntpClient.measure());
+        } catch (IOException ex) {
+            observer.assessmentFailed(RepPHlbAssessmentObserver.Failure.TRUSTED_TIME_UNAVAILABLE);
+            throw ex;
+        }
     }
 
     Assessment assess(ObservatorioNacionalNtpClient.Measurement measurement) {
@@ -39,7 +58,9 @@ public final class RepPHlbAssessmentService {
                 measurement.exchange()
         );
         RepPClockCompliance compliance = RepPClockCompliance.assess(evidence.offset());
-        return new Assessment(evidence, compliance);
+        Assessment assessment = new Assessment(evidence, compliance);
+        observer.assessmentCompleted(RepPHlbAssessmentObserver.AssessmentSignal.from(assessment));
+        return assessment;
     }
 
     public record Assessment(
