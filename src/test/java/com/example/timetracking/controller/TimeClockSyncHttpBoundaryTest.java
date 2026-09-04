@@ -24,7 +24,7 @@ class TimeClockSyncHttpBoundaryTest {
     }
 
     @Test
-    void trustedIdentityAcceptsOwnedEventAndPreservesCanonicalCorrelationId() {
+    void trustedIdentityCreatesOwnedEventAndPreservesCanonicalCorrelationId() {
         UUID eventId = UUID.randomUUID();
         String correlationId = UUID.randomUUID().toString();
 
@@ -41,7 +41,7 @@ class TimeClockSyncHttpBoundaryTest {
                 .expectHeader().valueEquals(CorrelationIdFilter.CORRELATION_ID, correlationId)
                 .expectBody()
                 .jsonPath("$[0].clientEventId").isEqualTo(eventId.toString())
-                .jsonPath("$[0].status").isEqualTo("ACCEPTED");
+                .jsonPath("$[0].status").isEqualTo("CREATED");
     }
 
     @Test
